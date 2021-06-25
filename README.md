@@ -8,9 +8,14 @@ Collection of utils related to minecraft used in other projects
 
 ```
 
-IServiceProvider serviceProvider = new ServiceCollection()
-                                    .AddSingletonMinecraftClient()
-                                    .BuildServiceProvider();
+IServiceProvider minecraftUtils = new ServiceCollection()
+                .AddSingletonMinecraftClient()
+                .AddSingletonTaskExecutor()
+                .BuildServiceProvider();
 
-IMinecraftClient client = serviceProvider.GetService<IMinecraftClient>();
+IMinecraftClient minecraftClient = minecraftUtils.GetService<IMinecraftClient>();
+
+// This is used to return any task wrapped as ITaskResponse with execution statistics. 
+// IMinecraftClient already internally uses this.
+ITaskExecutor taskExecutor = minecraftUtils.GetService<ITaskExecutor>();
 ```

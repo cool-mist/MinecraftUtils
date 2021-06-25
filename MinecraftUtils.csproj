@@ -4,7 +4,7 @@
     <TargetFramework>net5.0</TargetFramework>
     <PackageId>MinecraftUtils</PackageId>
     <Description>Provides utilities to query a minecraft server</Description>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Surya Prakash</Authors>
     <Company>CoolMist</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

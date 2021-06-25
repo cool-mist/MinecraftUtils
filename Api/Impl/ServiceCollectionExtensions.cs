@@ -9,5 +9,11 @@ namespace MinecraftUtils.Api.Impl
             IMinecraftClient client = new MinecraftClient();
             return serviceCollection.AddSingleton(client);
         }
+
+        public static IServiceCollection AddSingletonTaskExecutor(this IServiceCollection serviceCollection)
+        {
+            ITaskExecutor executor = new TaskExecutor();
+            return serviceCollection.AddSingleton(executor);
+        }
     }
 }
