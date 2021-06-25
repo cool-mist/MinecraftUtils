@@ -37,7 +37,7 @@ namespace MinecraftUtils.Api.Impl
             }
             catch (Exception)
             {
-                return null;
+                throw;
             }
             finally
             {
