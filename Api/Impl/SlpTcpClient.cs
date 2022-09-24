@@ -1,14 +1,14 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace MinecraftUtils.Api.Impl
+﻿namespace MinecraftUtils.Api.Impl
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Net.Sockets;
+    using System.Text;
+    using System.Text.Json;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     internal class SlpTcpClient : TcpClient
     {
         int tcpBufferOffset;
@@ -16,11 +16,15 @@ namespace MinecraftUtils.Api.Impl
         List<byte> tcpBuffer;
         private readonly string serverHost;
         private readonly int serverPort;
+        private readonly int protocol;
+        private readonly AutoResetEvent connectionCompletedOrTimedOut;
 
-        public SlpTcpClient(string serverHost, int serverPort)
+        public SlpTcpClient(string serverHost, int serverPort, int protocol)
         {
             this.serverHost = serverHost;
             this.serverPort = serverPort;
+            this.protocol = protocol;
+            this.connectionCompletedOrTimedOut = new AutoResetEvent(false);
         }
 
         /*
@@ -41,7 +45,8 @@ namespace MinecraftUtils.Api.Impl
             }
             finally
             {
-                tcpClientStream.Close();
+                tcpClientStream?.Close();
+                connectionCompletedOrTimedOut.Dispose();
             }
         }
 
@@ -57,44 +62,48 @@ namespace MinecraftUtils.Api.Impl
             tcpBuffer = new List<byte>();
             tcpClientStream = GetStream();
 
-            // 1. Handshake
-            WriteVarInt(755); // If client breaks, check this version first
+            var buffer = new byte[short.MaxValue];
+
+            WriteVarInt(protocol); // If client breaks, check this version first
             WriteString(serverHost);
             WriteShort(25565);
             WriteVarInt(1);
+
+            cancellationToken.ThrowIfCancellationRequested();
             await Flush(0, cancellationToken);
 
-            // 2. Empty message
+            cancellationToken.ThrowIfCancellationRequested();
             await Flush(0, cancellationToken);
 
-            var buffer = new byte[Int16.MaxValue];
-
-            // 3. Server response
-            await Read(buffer, cancellationToken);    // Servers seem to send an empty packet and read an empty packet 
-            await Flush(0, cancellationToken);        // before actually sending the server status. This is the main
-            await Read(buffer, cancellationToken);    // modification from the initial code
+            cancellationToken.ThrowIfCancellationRequested();
+            await Read(buffer, cancellationToken);
 
             ReadVarInt(buffer); //length
             ReadVarInt(buffer); //packet
 
             var jsonLength = ReadVarInt(buffer);
             var json = ReadString(buffer, jsonLength);
-            return JsonConvert.DeserializeObject<PingPayload>(json);
+            return JsonSerializer.Deserialize<PingPayload>(json, new JsonSerializerOptions() {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
         }
 
-        private Task Read(byte[] buffer, CancellationToken cancellationToken)
+        private async Task Read(byte[] buffer, CancellationToken cancellationToken)
         {
-            return tcpClientStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+            var readSize = -1;
+            var bytesRead = 0;
+            while (readSize != 0)
+            {
+                readSize = await tcpClientStream.ReadAsync(buffer, bytesRead, buffer.Length - bytesRead, cancellationToken);
+                bytesRead += readSize;
+            }
         }
 
         private async Task<bool> ConnectAsync(CancellationToken cancellationToken)
         {
-            ValueTask task = this.ConnectAsync(serverHost, serverPort, cancellationToken);
+            await ConnectAsyncInternal(cancellationToken);
 
-            while (!task.IsCompleted)
-            {
-                await Task.Delay(250);
-            }
+            connectionCompletedOrTimedOut.WaitOne();
 
             if (!Connected)
             {
@@ -102,6 +111,12 @@ namespace MinecraftUtils.Api.Impl
             }
 
             return true;
+        }
+
+        private async Task ConnectAsyncInternal(CancellationToken cancellationToken)
+        {
+            await this.ConnectAsync(serverHost, serverPort, cancellationToken);
+            this.connectionCompletedOrTimedOut.Set();
         }
 
         internal byte ReadByte(byte[] buffer)
@@ -189,55 +204,38 @@ namespace MinecraftUtils.Api.Impl
 
         internal class PingPayload
         {
-            [JsonProperty(PropertyName = "version")]
             public VersionPayload Version { get; set; }
 
-            [JsonProperty(PropertyName = "players")]
             public PlayersPayload Players { get; set; }
 
-            [JsonProperty(PropertyName = "description")]
-            public MotdPayload Motd { get; set; }
-
-            /// <summary>
-            /// Server icon, important to note that it's encoded in base 64
-            /// </summary>
-            [JsonProperty(PropertyName = "favicon")]
-            public string Icon { get; set; }
+            public MotdPayload Description { get; set; }
         }
 
         internal class MotdPayload
         {
-            [JsonProperty(PropertyName = "text")]
             public string Text { get; set; }
         }
 
         internal class VersionPayload
         {
-            [JsonProperty(PropertyName = "protocol")]
             public int Protocol { get; set; }
 
-            [JsonProperty(PropertyName = "name")]
             public string Name { get; set; }
         }
 
         internal class PlayersPayload
         {
-            [JsonProperty(PropertyName = "max")]
             public int Max { get; set; }
 
-            [JsonProperty(PropertyName = "online")]
             public int Online { get; set; }
 
-            [JsonProperty(PropertyName = "sample")]
             public List<Player> Sample { get; set; }
         }
 
         internal class Player
         {
-            [JsonProperty(PropertyName = "name")]
             public string Name { get; set; }
 
-            [JsonProperty(PropertyName = "id")]
             public string Id { get; set; }
         }
     }

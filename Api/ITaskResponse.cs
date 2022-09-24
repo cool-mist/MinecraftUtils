@@ -1,7 +1,7 @@
-﻿using System;
-
-namespace MinecraftUtils.Api
+﻿namespace MinecraftUtils.Api
 {
+    using System;
+
     /// <summary>
     /// Task wrapper to return statistics for the task
     /// </summary>

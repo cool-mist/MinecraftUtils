@@ -1,10 +1,10 @@
-﻿using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace MinecraftUtils.Api.Impl
+﻿namespace MinecraftUtils.Api.Impl
 {
+    using System;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     internal class TaskExecutor : ITaskExecutor
     {
         public async Task<ITaskResponse<T>> ExecuteAsync<T>(

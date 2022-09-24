@@ -1,41 +1,32 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-using static MinecraftUtils.Api.Impl.SlpTcpClient;
-
-namespace MinecraftUtils.Api.Impl
+﻿namespace MinecraftUtils.Api.Impl
 {
-    internal class MinecraftClient : IMinecraftClient
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using static MinecraftUtils.Api.Impl.SlpTcpClient;
+
+    public class MinecraftClient : IMinecraftClient
     {
         private readonly int DEFAULT_SERVER_PORT = 25565;
+        private readonly int DEFAULT_PROTOCOL = 760;
         private readonly ITaskExecutor executor = new TaskExecutor();
 
-        public Task<ITaskResponse<IMinecraftState>> GetStateAsync(string serverHost, int serverPort, CancellationToken cancellationToken)
+        public Task<ITaskResponse<IMinecraftState>> GetStateAsync(string serverHost, int serverPort, int protocol, CancellationToken cancellationToken)
         {
-            return executor.ExecuteAsync("GetServerState", GetServerStateAsyncTask(serverHost, serverPort, cancellationToken), cancellationToken);
-        }
-
-        public Task<ITaskResponse<IMinecraftState>> GetStateAsync(string serverHost, int serverPort)
-        {
-            return GetStateAsync(serverHost, serverPort, CancellationToken.None);
+            return executor.ExecuteAsync("GetServerState", GetServerStateAsyncTask(serverHost, serverPort, protocol, cancellationToken), cancellationToken);
         }
 
         public Task<ITaskResponse<IMinecraftState>> GetStateAsync(string serverHost, CancellationToken cancellationToken)
         {
-            return GetStateAsync(serverHost, DEFAULT_SERVER_PORT, cancellationToken);
+            return GetStateAsync(serverHost, DEFAULT_SERVER_PORT, DEFAULT_PROTOCOL, cancellationToken);
         }
 
-        public Task<ITaskResponse<IMinecraftState>> GetStateAsync(string serverHost)
-        {
-            return GetStateAsync(serverHost, DEFAULT_SERVER_PORT);
-        }
-
-        private Func<Task<IMinecraftState>> GetServerStateAsyncTask(string serverHost, int serverPort, CancellationToken cancellationToken)
+        private Func<Task<IMinecraftState>> GetServerStateAsyncTask(string serverHost, int serverPort, int protocol, CancellationToken cancellationToken)
         {
             return async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                using (var slpTcpClient = new SlpTcpClient(serverHost, serverPort))
+                using (var slpTcpClient = new SlpTcpClient(serverHost, serverPort, protocol))
                 {
                     var ping = await slpTcpClient.Ping(cancellationToken);
                     return CreateMinecraftServerResponse(ping, serverHost, serverPort);
@@ -63,7 +54,7 @@ namespace MinecraftUtils.Api.Impl
                 MaxPlayers = ping?.Players?.Max ?? 0,
                 OnlinePlayers = ping?.Players?.Online ?? 0,
                 Hostname = serverHost,
-                Motd = ping?.Motd?.Text,
+                Motd = ping?.Description?.Text,
                 Ping = ping
             };
         }
